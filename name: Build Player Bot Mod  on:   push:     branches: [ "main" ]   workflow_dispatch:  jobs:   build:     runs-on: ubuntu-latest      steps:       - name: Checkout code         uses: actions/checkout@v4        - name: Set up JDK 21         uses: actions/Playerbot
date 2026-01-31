@@ -1,0 +1,85 @@
+package com.simplebot;
+
+import com.mojang.authlib.GameProfile;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.command.CommandManager;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.server.world.ServerWorld;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+public class SimpleBotMod implements ModInitializer {
+
+    private static final Map<String, ServerPlayerEntity> BOTS = new HashMap<>();
+
+    @Override
+    public void onInitialize() {
+
+        CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) -> {
+
+            dispatcher.register(
+                CommandManager.literal("bot")
+                    .then(CommandManager.literal("spawn")
+                        .then(CommandManager.argument("name", net.minecraft.command.argument.StringArgumentType.word())
+                            .executes(ctx -> {
+                                String name = net.minecraft.command.argument.StringArgumentType.getString(ctx, "name");
+                                spawnBot(ctx.getSource().getServer(), name);
+                                ctx.getSource().sendFeedback(() -> net.minecraft.text.Text.literal("Bot spawned: " + name), false);
+                                return 1;
+                            })
+                        )
+                    )
+                    .then(CommandManager.literal("remove")
+                        .then(CommandManager.argument("name", net.minecraft.command.argument.StringArgumentType.word())
+                            .executes(ctx -> {
+                                String name = net.minecraft.command.argument.StringArgumentType.getString(ctx, "name");
+                                removeBot(ctx.getSource().getServer(), name);
+                                ctx.getSource().sendFeedback(() -> net.minecraft.text.Text.literal("Bot removed: " + name), false);
+                                return 1;
+                            })
+                        )
+                    )
+            );
+
+        });
+    }
+
+    private static void spawnBot(MinecraftServer server, String name) {
+
+        if (BOTS.containsKey(name)) return;
+
+        ServerWorld world = server.getOverworld();
+
+        GameProfile profile = new GameProfile(
+                UUID.nameUUIDFromBytes(("SimpleBot:" + name).getBytes()),
+                name
+        );
+
+        ServerPlayerEntity bot = new ServerPlayerEntity(
+                server,
+                world,
+                profile
+        );
+
+        bot.refreshPositionAndAngles(
+                world.getSpawnPos(),
+                0.0f,
+                0.0f
+        );
+
+        world.spawnEntity(bot);
+        BOTS.put(name, bot);
+    }
+
+    private static void removeBot(MinecraftServer server, String name) {
+
+        ServerPlayerEntity bot = BOTS.remove(name);
+        if (bot != null) {
+            bot.networkHandler.disconnect(net.minecraft.text.Text.literal("Bot removed"));
+        }
+    }
+}
